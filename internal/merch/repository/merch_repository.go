@@ -232,17 +232,6 @@ func (r *merchRepository) BuyItem(ctx context.Context, userID string, itemName s
 		}
 	}
 
-	transaction := domain.Transaction{
-		SenderID:   userID,
-		ReceiverID: "7d883678-7e5f-4a98-b77b-04989a62f3a6",
-		Amount:     itemCost,
-	}
-	if err := tx.Create(&transaction).Error; err != nil {
-		tx.Rollback()
-		logger.DBLogger.Error("Failed to create transaction", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return errors.New("failed to create transaction record")
-	}
-
 	if err := tx.Commit().Error; err != nil {
 		logger.DBLogger.Error("Failed to commit", zap.String("request_id", requestID), zap.String("user_id", userID))
 		return errors.New("failed to commit transaction")
