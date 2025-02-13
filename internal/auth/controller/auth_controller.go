@@ -77,6 +77,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -114,9 +115,11 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 
 	switch err.Error() {
 	case "not correct username", "not correct password",
-		"invalid credentials", "jwt_token already exists", "Input contains invalid characters",
+		"jwt_token already exists", "Input contains invalid characters",
 		"Input exceeds character limit":
 		w.WriteHeader(http.StatusBadRequest)
+	case "invalid credentials":
+		w.WriteHeader(http.StatusUnauthorized)
 	case "failed to generate error response":
 		w.WriteHeader(http.StatusInternalServerError)
 	default:
