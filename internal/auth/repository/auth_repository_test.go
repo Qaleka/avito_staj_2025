@@ -35,7 +35,7 @@ func TestAuthUser(t *testing.T) {
 		rows := sqlmock.NewRows([]string{"uuid", "username", "password"}).
 			AddRow("user-123", username, hashedPassword)
 
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT uuid, username, password FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT $2`)).
 			WithArgs(username, 1).
 			WillReturnRows(rows)
 
@@ -52,7 +52,7 @@ func TestAuthUser(t *testing.T) {
 		username := "newUser"
 		password := "hashedPassword"
 
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT uuid, username, password FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT $2`)).
 			WithArgs(username, 1).
 			WillReturnError(gorm.ErrRecordNotFound)
 		mock.ExpectBegin()
@@ -72,13 +72,13 @@ func TestAuthUser(t *testing.T) {
 		username := "errorUser"
 		password := "hashedPassword"
 
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT 1`)).
-			WithArgs(username).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT uuid, username, password FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+			WithArgs(username, 1).
 			WillReturnError(gorm.ErrRecordNotFound)
 
 		mock.ExpectBegin()
 		mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "users" ("username","password","coins") VALUES ($1,$2,$3) RETURNING "uuid"`)).
-			WithArgs("newUser", "hashedPassword", 1000).
+			WithArgs(username, password, 1000).
 			WillReturnError(errors.New("failed to create user"))
 		mock.ExpectRollback()
 		user, err := authRepo.AuthUser(ctx, username, password)
@@ -91,8 +91,8 @@ func TestAuthUser(t *testing.T) {
 		username := "brokenUser"
 		password := "hashedPassword"
 
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT 1`)).
-			WithArgs(username).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT uuid, username, password FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+			WithArgs(username, 1).
 			WillReturnError(errors.New("database error"))
 
 		user, err := authRepo.AuthUser(ctx, username, password)

@@ -4,7 +4,6 @@ import (
 	"avito_staj_2025/domain"
 	"avito_staj_2025/internal/auth/mocks"
 	"avito_staj_2025/internal/service/logger"
-	"avito_staj_2025/internal/service/middleware"
 	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -26,12 +25,8 @@ func TestLoginUser(t *testing.T) {
 	invalidUsername := "/~~~~~~~"
 	invalidPassword := "short"
 
-	hashedPassword, _ := middleware.HashPassword(validPassword)
-
-	// Успешная аутентификация
-	mockRepo.On("AuthUser", mock.Anything, validUsername, mock.MatchedBy(func(pwd string) bool {
-		return middleware.CheckPassword(pwd, validPassword)
-	})).Return(&domain.User{UUID: "user-123", Password: ""}, nil)
+	mockRepo.On("AuthUser", mock.Anything, validUsername, validPassword).
+		Return(&domain.User{UUID: "user-123", Password: validPassword}, nil)
 
 	t.Run("Success", func(t *testing.T) {
 		userID, err := authUC.LoginUser(ctx, validUsername, validPassword)
@@ -41,8 +36,8 @@ func TestLoginUser(t *testing.T) {
 	})
 
 	t.Run("Wrong Password", func(t *testing.T) {
-		mockRepo.On("AuthUser", mock.Anything, validUsername, mock.Anything).
-			Return(&domain.User{UUID: "user-123", Password: hashedPassword}, nil)
+		mockRepo.On("AuthUser", mock.Anything, validUsername, "WrongPass123!").
+			Return(&domain.User{UUID: "user-123", Password: validPassword}, nil)
 
 		userID, err := authUC.LoginUser(ctx, validUsername, "WrongPass123!")
 

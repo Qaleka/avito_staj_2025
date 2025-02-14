@@ -112,7 +112,6 @@ func TestBuyItem(t *testing.T) {
 	tooLongUserID := strings.Repeat("a", 256)
 	nonExistentItem := "unknown_item"
 
-	// Определяем MerchTypes (может быть в другом месте)
 	domain.MerchTypes = map[string]int{
 		"sword":  100,
 		"shield": 150,

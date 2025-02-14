@@ -103,64 +103,69 @@ func (r *merchRepository) GetUserMerchInformation(ctx context.Context, userID st
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserMerchInformation called", zap.String("request_id", requestID), zap.String("user_id", userID))
 
-	var user domain.User
-	if err := r.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			logger.DBLogger.Warn("User not found", zap.String("request_id", requestID), zap.String("user_id", userID))
-			return domain.UserInformationResponse{}, errors.New("user not found")
+	var response domain.UserInformationResponse
+
+	if err := r.db.Transaction(func(tx *gorm.DB) error {
+		var user domain.User
+		if err := tx.Where("uuid = ?", userID).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				logger.DBLogger.Warn("User not found", zap.String("request_id", requestID), zap.String("user_id", userID))
+				return errors.New("user not found")
+			}
+			logger.DBLogger.Error("Failed to get user", zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("failed to fetch user")
 		}
-		logger.DBLogger.Error("Failed to get user", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return domain.UserInformationResponse{}, errors.New("failed to fetch user")
-	}
 
-	var inventory []domain.Inventory
-	if err := r.db.Where("owner_id = ?", userID).Find(&inventory).Error; err != nil {
-		logger.DBLogger.Error("Failed to get inventory", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return domain.UserInformationResponse{}, errors.New("failed to fetch inventory")
-	}
-
-	var inventoryResponse []domain.InventoryResponse
-	for _, item := range inventory {
-		inventoryResponse = append(inventoryResponse, domain.InventoryResponse{
-			Type:     item.ItemName,
-			Quantity: item.ItemAmount,
-		})
-	}
-
-	var transactions []domain.TransactionWithUsers
-	if err := r.db.
-		Table("transactions").
-		Select("transactions.amount, sender.username AS sender_name, receiver.username AS receiver_name").
-		Joins("JOIN users AS sender ON transactions.sender_id = sender.uuid").
-		Joins("JOIN users AS receiver ON transactions.receiver_id = receiver.uuid").
-		Where("transactions.sender_id = ? OR transactions.receiver_id = ?", userID, userID).
-		Scan(&transactions).Error; err != nil {
-		return domain.UserInformationResponse{}, errors.New("failed to fetch transactions")
-	}
-
-	var sentResponses []domain.SentResponse
-	var receivedResponses []domain.ReceivedResponse
-	for _, t := range transactions {
-		if t.SenderName == user.Username {
-			sentResponses = append(sentResponses, domain.SentResponse{
-				ToUser: t.ReceiverName,
-				Amount: t.Amount,
-			})
-		} else {
-			receivedResponses = append(receivedResponses, domain.ReceivedResponse{
-				FromUser: t.SenderName,
-				Amount:   t.Amount,
-			})
+		var inventory []domain.Inventory
+		if err := tx.Where("owner_id = ?", userID).Find(&inventory).Error; err != nil {
+			logger.DBLogger.Error("Failed to get inventory", zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("failed to fetch inventory")
 		}
-	}
 
-	response := domain.UserInformationResponse{
-		Coins:     user.Coins,
-		Inventory: inventoryResponse,
-		CoinHistory: domain.CoinHistory{
-			Sent:     sentResponses,
-			Received: receivedResponses,
-		},
+		var transactions []domain.TransactionWithUsers
+		if err := tx.
+			Table("transactions").
+			Select("transactions.amount, sender.username AS sender_name, receiver.username AS receiver_name").
+			Joins("JOIN users AS sender ON transactions.sender_id = sender.uuid").
+			Joins("JOIN users AS receiver ON transactions.receiver_id = receiver.uuid").
+			Where("transactions.sender_id = ? OR transactions.receiver_id = ?", userID, userID).
+			Scan(&transactions).Error; err != nil {
+			return errors.New("failed to fetch transactions")
+		}
+
+		response = domain.UserInformationResponse{
+			Coins:     user.Coins,
+			Inventory: make([]domain.InventoryResponse, len(inventory)),
+			CoinHistory: domain.CoinHistory{
+				Sent:     make([]domain.SentResponse, 0),
+				Received: make([]domain.ReceivedResponse, 0),
+			},
+		}
+
+		for i, item := range inventory {
+			response.Inventory[i] = domain.InventoryResponse{
+				Type:     item.ItemName,
+				Quantity: item.ItemAmount,
+			}
+		}
+
+		for _, t := range transactions {
+			if t.SenderName == user.Username {
+				response.CoinHistory.Sent = append(response.CoinHistory.Sent, domain.SentResponse{
+					ToUser: t.ReceiverName,
+					Amount: t.Amount,
+				})
+			} else {
+				response.CoinHistory.Received = append(response.CoinHistory.Received, domain.ReceivedResponse{
+					FromUser: t.SenderName,
+					Amount:   t.Amount,
+				})
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return domain.UserInformationResponse{}, err
 	}
 
 	logger.DBLogger.Info("Successfully get information", zap.String("request_id", requestID), zap.String("user_id", userID))
@@ -171,70 +176,40 @@ func (r *merchRepository) BuyItem(ctx context.Context, userID string, itemName s
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("BuyItem called", zap.String("request_id", requestID), zap.String("itemName", itemName), zap.String("user_id", userID))
 
-	var user domain.User
-	if err := r.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			logger.DBLogger.Warn("User not found", zap.String("request_id", requestID), zap.String("user_id", userID))
-			return errors.New("User not found")
-		}
-		logger.DBLogger.Error("Failed to get user", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return errors.New("failed to fetch user")
-	}
-
-	if user.Coins < itemCost {
-		logger.DBLogger.Warn("Not enough coins", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return errors.New("not enough coins")
-	}
-
-	tx := r.db.Begin()
-	if tx.Error != nil {
-		logger.DBLogger.Error("Failed to start transaction", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return errors.New("failed to start transaction")
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	user.Coins -= itemCost
-	if err := tx.Model(&domain.User{}).Where("uuid = ?", userID).Update("coins", user.Coins).Error; err != nil {
-		tx.Rollback()
-		logger.DBLogger.Error("Failed to update user coins", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return errors.New("failed to update user balance")
-	}
-
-	var inventoryItem domain.Inventory
-	if err := tx.Where("owner_id = ? AND item_name = ?", userID, itemName).First(&inventoryItem).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			newItem := domain.Inventory{
-				OwnerID:    userID,
-				ItemName:   itemName,
-				ItemAmount: 1,
+	if err := r.db.Transaction(func(tx *gorm.DB) error {
+		var user domain.User
+		if err := tx.Where("uuid = ?", userID).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				logger.DBLogger.Warn("User not found", zap.String("request_id", requestID), zap.String("user_id", userID))
+				return errors.New("user not found")
 			}
-			if err := tx.Create(&newItem).Error; err != nil {
-				tx.Rollback()
-				logger.DBLogger.Error("Failed to add new item to inventory", zap.String("request_id", requestID), zap.String("user_id", userID))
-				return errors.New("failed to add new item to inventory")
-			}
-		} else {
-			tx.Rollback()
-			logger.DBLogger.Error("Failed to get inventory", zap.String("request_id", requestID), zap.String("user_id", userID))
-			return errors.New("failed to fetch inventory item")
+			logger.DBLogger.Error("Failed to get user", zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("failed to fetch user")
 		}
-	} else {
-		inventoryItem.ItemAmount++
-		if err := tx.Save(&inventoryItem).Error; err != nil {
-			tx.Rollback()
-			logger.DBLogger.Error("Failed to update inventory", zap.String("request_id", requestID), zap.String("user_id", userID))
-			return errors.New("failed to update inventory item")
-		}
-	}
 
-	if err := tx.Commit().Error; err != nil {
-		logger.DBLogger.Error("Failed to commit", zap.String("request_id", requestID), zap.String("user_id", userID))
-		return errors.New("failed to commit transaction")
+		if user.Coins < itemCost {
+			logger.DBLogger.Warn("Not enough coins", zap.String("request_id", requestID), zap.String("user_id", userID))
+			return errors.New("not enough coins")
+		}
+
+		if err := tx.Model(&domain.User{}).Where("uuid = ?", userID).Update("coins", user.Coins-itemCost).Error; err != nil {
+			logger.DBLogger.Error("Failed to update user coins", zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("failed to update user balance")
+		}
+
+		if err := tx.Exec(`
+			INSERT INTO inventories (owner_id, item_name, item_amount)
+			VALUES (?, ?, 1)
+			ON CONFLICT (owner_id, item_name)
+			DO UPDATE SET item_amount = inventories.item_amount + 1
+		`, userID, itemName).Error; err != nil {
+			logger.DBLogger.Error("Failed to update inventory", zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("failed to update inventory")
+		}
+
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	logger.DBLogger.Info("Item successfully purchased", zap.String("request_id", requestID), zap.String("item_name", itemName), zap.String("user_id", userID))

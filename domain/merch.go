@@ -17,8 +17,8 @@ var MerchTypes = map[string]int{
 
 type Inventory struct {
 	ID         int    `gorm:"primary_key;auto_increment;column:id" json:"id"`
-	OwnerID    string `gorm:"column:owner_id;not null" json:"ownerID"`
-	ItemName   string `gorm:"type:varchar(255);column:item_name;not null" json:"itemName"`
+	OwnerID    string `gorm:"column:owner_id;not null;index:idx_owner_item,unique" json:"ownerID"`
+	ItemName   string `gorm:"type:varchar(255);column:item_name;not null;index:idx_owner_item,unique" json:"itemName"`
 	ItemAmount int    `gorm:"column:item_amount;not null" json:"itemAmount"`
 	User       User   `gorm:"foreignkey:OwnerID;references:UUID" json:"-"`
 }

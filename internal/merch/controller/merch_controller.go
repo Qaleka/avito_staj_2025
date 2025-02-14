@@ -41,10 +41,6 @@ func (h *MerchHandler) SendCoins(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("JWT-Token")
 	if authHeader == "" {
-		logger.AccessLogger.Warn("Missing JWT-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing JWT-Token header")),
-		)
 		h.handleError(w, errors.New("Missing JWT-Token header"), requestID)
 		return
 	}
@@ -52,23 +48,17 @@ func (h *MerchHandler) SendCoins(w http.ResponseWriter, r *http.Request) {
 	tokenString := authHeader[len("Bearer "):]
 	jwtToken, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 	var data domain.SentRequest
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		logger.AccessLogger.Error("Failed to decode request body",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
 		h.handleError(w, err, requestID)
 		return
 	}
 	data.ToUser = sanitizer.Sanitize(data.ToUser)
 	err = h.usecase.SendCoins(ctx, jwtToken.UserId, data.ToUser, data.Amount)
 	if err != nil {
-		logger.AccessLogger.Error("Failed to send coins", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
 	}
@@ -98,10 +88,6 @@ func (h *MerchHandler) GetUserMerchInformation(w http.ResponseWriter, r *http.Re
 
 	authHeader := r.Header.Get("JWT-Token")
 	if authHeader == "" {
-		logger.AccessLogger.Warn("Missing JWT-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing JWT-Token header")),
-		)
 		h.handleError(w, errors.New("Missing JWT-Token header"), requestID)
 		return
 	}
@@ -109,20 +95,17 @@ func (h *MerchHandler) GetUserMerchInformation(w http.ResponseWriter, r *http.Re
 	tokenString := authHeader[len("Bearer "):]
 	jwtToken, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 	response, err := h.usecase.GetUserMerchInformation(ctx, jwtToken.UserId)
 	if err != nil {
-		logger.AccessLogger.Warn("Failed to get user merch information", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
 	}
@@ -146,10 +129,6 @@ func (h *MerchHandler) BuyItem(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("JWT-Token")
 	if authHeader == "" {
-		logger.AccessLogger.Warn("Missing JWT-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing JWT-Token header")),
-		)
 		h.handleError(w, errors.New("Missing JWT-Token header"), requestID)
 		return
 	}
@@ -157,14 +136,12 @@ func (h *MerchHandler) BuyItem(w http.ResponseWriter, r *http.Request) {
 	tokenString := authHeader[len("Bearer "):]
 	jwtToken, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 	itemName := mux.Vars(r)["item"]
 	err = h.usecase.BuyItem(ctx, jwtToken.UserId, itemName)
 	if err != nil {
-		logger.AccessLogger.Warn("Failed to buy item", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
 	}

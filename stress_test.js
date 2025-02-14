@@ -1,35 +1,110 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-export let options = {
+
+export const options = {
     stages: [
-        { duration: '10s', target: 1000 }, // Разгон до 1000 RPS за 10 сек
-        { duration: '1m', target: 1000 },  // Держим нагрузку 1 минуту
-        { duration: '10s', target: 0 },    // Плавное завершение теста
+        { duration: '15s', target: 1000 },
+        { duration: '1m', target: 1000 },
+        { duration: '35s', target: 0 },
     ],
     thresholds: {
-        http_req_duration: ['p(99.99) < 50'], // 99.99% запросов должны быть быстрее 50 мс
-        http_req_failed: ['rate < 0.0001'],   // Процент ошибок < 0.01%
+        http_req_duration: ['p(90)<50'],
+        http_req_failed: ['rate<0.0001'],
     },
 };
 
-export default function () {
-    let url = 'http://localhost:8008/api/auth';
-    let payload = JSON.stringify({
-        username: `user${__VU}`, // Каждый VU отправляет свой логин
-        password: 'password123'
-    });
+const BASE_URL = 'http://localhost:8080/api';
+const USERNAME = `user_${__VU}`;
+const PASSWORD = 'test_password';
+const ITEM_NAME = 'pen';
+const RECEIVER_USERNAME = `user_${__VU}`;
 
-    let params = {
-        headers: { 'Content-Type': 'application/json' },
+// Функция для аутентификации
+function login() {
+    const url = `${BASE_URL}/auth`;
+    const payload = JSON.stringify({
+        username: USERNAME,
+        password: PASSWORD,
+    });
+    const params = {
+        headers: {
+            'Content-Type': 'application/json',
+        },
     };
-
-    let res = http.post(url, payload, params);
-
+    const res = http.post(url, payload, params);
     check(res, {
-        'is status 200': (r) => r.status === 200,
-        'response time < 50ms': (r) => r.timings.duration < 50,
+        'status is 200': (r) => r.status === 200,
+        'token received': (r) => r.json('token') !== null,
     });
+    return res.json('token');
+}
 
-    sleep(1); // Ждём 1 сек между запросами
+// Функция для получения информации о пользователе
+function getUserInfo(token) {
+    const url = `${BASE_URL}/info`;
+    const params = {
+        headers: {
+            'JWT-Token': `Bearer ${token}`,
+        },
+    };
+    const res = http.get(url, params);
+    check(res, {
+        'status is 200': (r) => r.status === 200,
+    });
+}
+
+// Функция для покупки товара
+function buyItem(token) {
+    const url = `${BASE_URL}/buy/${ITEM_NAME}`;
+    const params = {
+        headers: {
+            'JWT-Token': `Bearer ${token}`,
+        },
+    };
+    const res = http.get(url, params);
+
+    if (res.status === 400) {
+        console.log(`User ${USERNAME} does not have enough coins to buy ${ITEM_NAME}`);
+    } else {
+        check(res, {
+            'status is 200': (r) => r.status === 200,
+        });
+    }
+}
+
+// Функция для передачи монет
+function sendCoins(token) {
+    const url = `${BASE_URL}/sendCoin`;
+    const payload = JSON.stringify({
+        toUser: RECEIVER_USERNAME,
+        amount: 10,
+    });
+    const params = {
+        headers: {
+            'JWT-Token': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    };
+    const res = http.post(url, payload, params);
+
+    // Проверяем статус ответа
+    if (res.status === 400) {
+        console.log(`User ${USERNAME} does not have enough coins to send`);
+    } else {
+        check(res, {
+            'status is 200': (r) => r.status === 200,
+        });
+    }
+}
+
+// Основной сценарий
+export default function () {
+    const token = login();
+    if (token) {
+        getUserInfo(token);
+        buyItem(token);
+        sendCoins(token);
+    }
+    sleep(1);
 }

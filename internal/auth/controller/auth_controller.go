@@ -29,7 +29,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
-	sanitizer := bluemonday.UGCPolicy()
 	defer cancel()
 
 	logger.AccessLogger.Info("Received LoginUser request",
@@ -40,32 +39,24 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("JWT-Token")
 	if authHeader != "" {
-		logger.AccessLogger.Warn("jwt_token already exists",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("jwt_token already exists")),
-		)
 		h.handleError(w, errors.New("jwt_token already exists"), requestID)
 		return
 	}
 
 	var creds domain.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-		logger.AccessLogger.Error("Failed to decode request body",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
 		h.handleError(w, err, requestID)
 		return
 	}
 
-	creds.Username = sanitizer.Sanitize(creds.Username)
-	creds.Password = sanitizer.Sanitize(creds.Password)
+	sanitizer := bluemonday.UGCPolicy()
+	creds = domain.LoginRequest{
+		Username: sanitizer.Sanitize(creds.Username),
+		Password: sanitizer.Sanitize(creds.Password),
+	}
 
 	userID, err := h.usecase.LoginUser(ctx, creds.Username, creds.Password)
 	if err != nil {
-		logger.AccessLogger.Error("Failed to login",
-			zap.String("request_id", requestID),
-			zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
 	}
@@ -73,10 +64,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	tokenExpTime := time.Now().Add(24 * time.Hour).Unix()
 	jwtToken, err := h.jwtToken.Create(userID, tokenExpTime)
 	if err != nil {
-		logger.AccessLogger.Error("Failed to create JWT token",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
 		h.handleError(w, err, requestID)
 		return
 	}
@@ -88,10 +75,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

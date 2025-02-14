@@ -40,17 +40,12 @@ func (uc *authUsecase) LoginUser(ctx context.Context, username string, password 
 		return "", errors.New("not correct password")
 	}
 
-	hashedPassword, ok := middleware.HashPassword(password)
-	if ok != nil {
-		return "", errors.New("failed to hash password")
-	}
-
-	user, err := uc.authRepository.AuthUser(ctx, username, hashedPassword)
+	user, err := uc.authRepository.AuthUser(ctx, username, password)
 	if err != nil {
 		return "", err
 	}
 
-	if user.Password != "" && !middleware.CheckPassword(user.Password, password) {
+	if user.Password != "" && user.Password != password {
 		return "", errors.New("invalid credentials")
 	}
 
