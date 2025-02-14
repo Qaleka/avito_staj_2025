@@ -8,7 +8,6 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: ${DB_NAME}
-      POSTGRES_MAX_CONNECTIONS: ${MAX_CONNECTIONS}  # Максимальное количество соединений
     ports:
       - "${DB_PORT}:5432"
     volumes:
@@ -38,7 +37,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "8080:8080"
+      - "8008:8080"
     networks:
       - app-network
 
@@ -57,7 +56,7 @@ services:
       DB_PASS: ${DB_PASS}
       BACKEND_URL: ${BACKEND_URL}
     ports:
-      - "8008:8008"
+      - "8080:8080"
     networks:
       - app-network
 
