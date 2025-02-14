@@ -2,19 +2,20 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:17
     container_name: postgresDb
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: ${DB_NAME}
-      POSTGRES_MAX_CONNECTIONS: 100  # Максимальное количество соединений
+      POSTGRES_MAX_CONNECTIONS: ${MAX_CONNECTIONS}  # Максимальное количество соединений
     ports:
       - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - app-network
+    command: ["postgres", "-c", "max_connections=1000"]
 
   migrator:
     build:

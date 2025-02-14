@@ -1,0 +1,111 @@
+# Версия конфигурации
+version: 1
+
+# Настройки запуска
+run:
+  # Включаем все доступные линтеры
+  enable-all: true
+  # Отключаем линтеры, которые не нужны
+  disable:
+    - gochecknoglobals
+    - gochecknoinits
+    - gocritic
+    - gocyclo
+    - godox
+    - gofmt
+    - goimports
+    - golint
+    - gosec
+    - interfacer
+    - maligned
+    - scopelint
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - whitespace
+    - wsl
+  # Время выполнения линтера (по умолчанию 1m)
+  deadline: 2m
+  # Количество потоков для выполнения линтера
+  concurrency: 4
+
+# Настройки линтеров
+linters:
+  # Включаем только нужные линтеры
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - typecheck
+    - unused
+  # Отключаем линтеры, которые не нужны
+  disable-all: true
+
+# Настройки для конкретных линтеров
+linters-settings:
+  revive:
+    # Настройки для линтера revive
+    rules:
+      - name: exported
+        disabled: false
+      - name: package-comments
+        disabled: false
+      - name: var-naming
+        disabled: false
+      - name: var-declaration
+        disabled: false
+      - name: receiver-naming
+        disabled: false
+      - name: indent-error-flow
+        disabled: false
+      - name: error-return
+        disabled: false
+      - name: error-strings
+        disabled: false
+      - name: error-naming
+        disabled: false
+      - name: exported
+        disabled: false
+      - name: package-comments
+        disabled: false
+      - name: var-naming
+        disabled: false
+      - name: var-declaration
+        disabled: false
+      - name: receiver-naming
+        disabled: false
+      - name: indent-error-flow
+        disabled: false
+      - name: error-return
+        disabled: false
+      - name: error-strings
+        disabled: false
+      - name: error-naming
+        disabled: false
+
+# Настройки для обработки ошибок
+issues:
+  # Исключаем файлы и директории
+  exclude-rules:
+    - path: _test.go
+      linters:
+        - gocyclo
+    - path: internal/mocks
+      linters:
+        - revive
+  # Максимальное количество ошибок (по умолчанию 50)
+  max-issues-per-linter: 100
+  max-same-issues: 100
+
+# Настройки для форматирования вывода
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
