@@ -65,14 +65,14 @@ func (r *merchRepository) SendCoins(ctx context.Context, senderID string, receiv
 	}
 
 	sender.Coins -= amount
-	if err := tx.Save(&sender).Error; err != nil {
+	if err := tx.Model(&domain.User{}).Where("uuid = ?", senderID).Update("coins", sender.Coins).Error; err != nil {
 		tx.Rollback()
 		logger.DBLogger.Error("Failed to update sender coins", zap.String("request_id", requestID), zap.String("sender_id", senderID))
 		return errors.New("failed to update sender balance")
 	}
 
 	receiver.Coins += amount
-	if err := tx.Save(&receiver).Error; err != nil {
+	if err := tx.Model(&domain.User{}).Where("uuid = ?", receiver.UUID).Update("coins", receiver.Coins).Error; err != nil {
 		tx.Rollback()
 		logger.DBLogger.Error("Failed to update receiver coins", zap.String("request_id", requestID), zap.String("receiver_id", receiver.UUID))
 		return errors.New("failed to update receiver balance")
@@ -199,7 +199,7 @@ func (r *merchRepository) BuyItem(ctx context.Context, userID string, itemName s
 	}()
 
 	user.Coins -= itemCost
-	if err := tx.Save(&user).Error; err != nil {
+	if err := tx.Model(&domain.User{}).Where("uuid = ?", userID).Update("coins", user.Coins).Error; err != nil {
 		tx.Rollback()
 		logger.DBLogger.Error("Failed to update user coins", zap.String("request_id", requestID), zap.String("user_id", userID))
 		return errors.New("failed to update user balance")

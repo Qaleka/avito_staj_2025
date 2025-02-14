@@ -23,7 +23,7 @@ func (r *authRepository) AuthUser(ctx context.Context, username string, password
 	requestID := middleware.GetRequestID(ctx)
 	var user domain.User
 	logger.DBLogger.Info("AuthUser called", zap.String("request_id", requestID), zap.String("username", username))
-	if err := r.db.First(&user, "username = ?", username).Error; err != nil {
+	if err := r.db.Select("uuid, username, password").Where("username = ?", username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			user.Username = username
 			user.Password = password

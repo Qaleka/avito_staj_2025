@@ -2,7 +2,9 @@ package mocks
 
 import (
 	"avito_staj_2025/domain"
+	"avito_staj_2025/internal/service/middleware"
 	"context"
+	"github.com/golang-jwt/jwt"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -46,16 +48,24 @@ func (m *MockMerchRepository) BuyItem(ctx context.Context, userID string, itemNa
 }
 
 // Mock для JWT
-type MockJWT struct {
+type MockJwtTokenService struct {
 	mock.Mock
 }
 
-func (m *MockJWT) GenerateToken(userID string) (string, error) {
-	args := m.Called(userID)
+func (m *MockJwtTokenService) Create(userID string, tokenExpTime int64) (string, error) {
+	args := m.Called(userID, tokenExpTime)
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockJWT) ValidateToken(token string) (string, error) {
+func (m *MockJwtTokenService) Validate(tokenString string) (*middleware.JwtCsrfClaims, error) {
+	args := m.Called(tokenString)
+	if args.Get(0) != nil {
+		return args.Get(0).(*middleware.JwtCsrfClaims), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockJwtTokenService) ParseSecretGetter(token *jwt.Token) (interface{}, error) {
 	args := m.Called(token)
-	return args.String(0), args.Error(1)
+	return args.Get(0), args.Error(1)
 }

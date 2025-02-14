@@ -189,11 +189,11 @@ func (h *MerchHandler) handleError(w http.ResponseWriter, err error, requestID s
 	errorResponse := map[string]string{"error": err.Error()}
 
 	switch err.Error() {
-	case "Missing JWT-Token header", "Input contains invalid characters", "Input exceeds character limit",
+	case "Input contains invalid characters", "Input exceeds character limit",
 		"amount must be greater than 0", "item not found in merch types", "sender not found", "receiver not found",
 		"not enough coins", "User not found":
 		w.WriteHeader(http.StatusBadRequest)
-	case "Invalid JWT token":
+	case "Invalid JWT token", "Missing JWT-Token header":
 		w.WriteHeader(http.StatusUnauthorized)
 	case "failed to start transaction", "failed to find sender", "failed to find receiver", "failed to update sender balance",
 		"failed to update receiver balance", "failed to create transaction record", "failed to commit transaction",

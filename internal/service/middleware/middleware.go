@@ -64,8 +64,8 @@ func GetRequestID(ctx context.Context) string {
 }
 
 const (
-	requestsPerSecond = 5  // Лимит запросов в секунду для каждого IP
-	burstLimit        = 10 // Максимальный «всплеск» запросов
+	requestsPerSecond = 2000 // Лимит запросов в секунду для каждого IP
+	burstLimit        = 5000 // Максимальный «всплеск» запросов
 )
 
 var clientLimiters = sync.Map{}
@@ -113,7 +113,9 @@ func EnableCORS(next http.Handler) http.Handler {
 func DbConnect() *gorm.DB {
 	dsn := dsn.FromEnv()
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		PrepareStmt: true, // Включаем подготовку запросов
+	})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -123,13 +125,15 @@ func DbConnect() *gorm.DB {
 		log.Fatalf("Failed to get SQL DB from GORM: %v", err)
 	}
 
-	const maxOpenConns = 10
+	const maxOpenConns = 1000
+	const maxIdleConns = 500
+	const connMaxLifetime = 30 * time.Minute
+	const connMaxIdleTime = 5 * time.Minute
 
-	// Настройки пула соединений для всех сервисов
 	sqlDB.SetMaxOpenConns(maxOpenConns)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
-	sqlDB.SetConnMaxLifetime(1 * time.Hour)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	sqlDB.SetConnMaxLifetime(connMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(connMaxIdleTime)
 
 	// Проверка подключения
 	if err := sqlDB.Ping(); err != nil {
