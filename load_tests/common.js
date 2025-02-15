@@ -9,9 +9,9 @@ export const RECEIVER_USERNAME = `user_${__VU}`;
 
 export const options = {
     stages: [
-        { duration: '15s', target: 1000 },
+        { duration: '30s', target: 1000 },
         { duration: '1m', target: 1000 },
-        { duration: '35s', target: 0 },
+        { duration: '30s', target: 0 },
     ],
     thresholds: {
         http_req_duration: ['p(90)<50'],

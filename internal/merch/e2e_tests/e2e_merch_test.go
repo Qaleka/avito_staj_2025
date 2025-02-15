@@ -8,6 +8,7 @@ import (
 	merchController "avito_staj_2025/internal/merch/controller"
 	merchRepository "avito_staj_2025/internal/merch/repository"
 	merchUsecase "avito_staj_2025/internal/merch/usecase"
+	"avito_staj_2025/internal/service/dsn"
 	"avito_staj_2025/internal/service/logger"
 	"avito_staj_2025/internal/service/middleware"
 	"bytes"
@@ -15,6 +16,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -25,8 +27,8 @@ import (
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	dsn := "host=localhost user=postgres dbname=test password=qaleka123 sslmode=disable"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	test_dsn := dsn.FromEnvE2E()
+	db, err := gorm.Open(postgres.Open(test_dsn), &gorm.Config{})
 	assert.NoError(t, err)
 
 	err = db.AutoMigrate(&domain.User{}, &domain.Inventory{}, &domain.Transaction{})
@@ -71,9 +73,11 @@ func createTestTransaction(t *testing.T, db *gorm.DB, senderID, receiverID strin
 }
 
 func TestBuyItemE2E(t *testing.T) {
+	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
 	defer cleanupTestDB(t, db)
-
+	tx := db.Begin()
+	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -137,9 +141,11 @@ func TestBuyItemE2E(t *testing.T) {
 }
 
 func TestSendCoinsE2E(t *testing.T) {
+	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
 	defer cleanupTestDB(t, db)
-
+	tx := db.Begin()
+	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -215,9 +221,11 @@ func TestSendCoinsE2E(t *testing.T) {
 }
 
 func TestGetUserMerchInformationE2E(t *testing.T) {
+	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
 	defer cleanupTestDB(t, db)
-
+	tx := db.Begin()
+	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 

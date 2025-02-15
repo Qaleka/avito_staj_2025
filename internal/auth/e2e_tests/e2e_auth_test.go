@@ -5,11 +5,13 @@ import (
 	auth "avito_staj_2025/internal/auth/controller"
 	authRepository "avito_staj_2025/internal/auth/repository"
 	authUsecase "avito_staj_2025/internal/auth/usecase"
+	dsn2 "avito_staj_2025/internal/service/dsn"
 	"avito_staj_2025/internal/service/logger"
 	"avito_staj_2025/internal/service/middleware"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -19,7 +21,7 @@ import (
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	dsn := "host=localhost user=postgres dbname=test password=qaleka123 sslmode=disable"
+	dsn := dsn2.FromEnvE2E()
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	assert.NoError(t, err)
 
@@ -35,22 +37,22 @@ func cleanupTestDB(t *testing.T, db *gorm.DB) {
 }
 
 func createTestUser(t *testing.T, db *gorm.DB, username, password string) {
-	hashedPassword, err := middleware.HashPassword(password)
-	assert.NoError(t, err)
 
 	user := domain.User{
 		Username: username,
-		Password: hashedPassword,
+		Password: password,
 		Coins:    1000,
 	}
-	err = db.Create(&user).Error
+	err := db.Create(&user).Error
 	assert.NoError(t, err)
 }
 
 func TestLoginUserE2E(t *testing.T) {
+	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
 	defer cleanupTestDB(t, db)
-
+	tx := db.Begin()
+	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -108,9 +110,11 @@ func TestLoginUserE2E(t *testing.T) {
 }
 
 func TestLoginUserFirstTimeE2E(t *testing.T) {
+	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
 	defer cleanupTestDB(t, db)
-
+	tx := db.Begin()
+	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
