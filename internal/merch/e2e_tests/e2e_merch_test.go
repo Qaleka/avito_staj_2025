@@ -22,16 +22,53 @@ import (
 	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 )
 
+func createDatabaseIfNotExists() error {
+	host := os.Getenv("DB_HOST_TEST")
+	port := os.Getenv("DB_PORT_TEST")
+	user := os.Getenv("DB_USER_TEST")
+	pass := os.Getenv("DB_PASS_TEST")
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s sslmode=disable", host, port, user, pass)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return err
+	}
+
+	var count int64
+	db.Raw("SELECT COUNT(*) FROM pg_database WHERE datname = 'test'").Scan(&count)
+
+	if count == 0 {
+		_ = db.Exec("CREATE DATABASE test").Error
+	}
+
+	sqlDB, _ := db.DB()
+	sqlDB.Close()
+
+	return nil
+}
+
 func setupTestDB(t *testing.T) *gorm.DB {
+	err := createDatabaseIfNotExists()
+	assert.NoError(t, err)
 	dsn := dsn.FromEnvE2E()
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	assert.NoError(t, err)
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-	err = db.AutoMigrate(&domain.User{}, &domain.Inventory{}, &domain.Transaction{})
+	err = tx.AutoMigrate(&domain.User{}, &domain.Inventory{}, &domain.Transaction{})
+	assert.NoError(t, err)
+
+	tx.Commit()
 	assert.NoError(t, err)
 
 	return db
@@ -75,9 +112,6 @@ func createTestTransaction(t *testing.T, db *gorm.DB, senderID, receiverID strin
 func TestBuyItemE2E(t *testing.T) {
 	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
-	defer cleanupTestDB(t, db)
-	tx := db.Begin()
-	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -89,12 +123,13 @@ func TestBuyItemE2E(t *testing.T) {
 	}()
 
 	userID := uuid.New().String()
-	createTestUser(t, db, userID, "testUser", 500)
+	username := fmt.Sprintf("u_%d", time.Now().UnixNano())
+	createTestUser(t, db, userID, username, 500)
 
 	token, err := jwtToken.Create(userID, time.Now().Add(24*time.Hour).Unix())
 	assert.NoError(t, err)
 
-	itemName := "sword"
+	itemName := "pen"
 	domain.MerchTypes = map[string]int{
 		itemName: 100,
 	}
@@ -143,9 +178,6 @@ func TestBuyItemE2E(t *testing.T) {
 func TestSendCoinsE2E(t *testing.T) {
 	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
-	defer cleanupTestDB(t, db)
-	tx := db.Begin()
-	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -158,8 +190,8 @@ func TestSendCoinsE2E(t *testing.T) {
 
 	senderID := uuid.New().String()
 	receiverID := uuid.New().String() // Валидный UUID
-	senderName := "sender_user"
-	receiverUsername := "receiver_user"
+	senderName := fmt.Sprintf("s_%d", time.Now().UnixNano())
+	receiverUsername := fmt.Sprintf("r_%d", time.Now().UnixNano())
 	createTestUser(t, db, senderID, senderName, 500)
 	createTestUser(t, db, receiverID, receiverUsername, 100)
 
@@ -207,12 +239,12 @@ func TestSendCoinsE2E(t *testing.T) {
 	var sender domain.User
 	err = db.Where("uuid = ?", senderID).First(&sender).Error
 	assert.NoError(t, err)
-	assert.Equal(t, 300, sender.Coins) // 500 - 200 = 300
+	assert.Equal(t, 300, sender.Coins)
 
 	var receiver domain.User
 	err = db.Where("username = ?", receiverUsername).First(&receiver).Error
 	assert.NoError(t, err)
-	assert.Equal(t, 300, receiver.Coins) // 100 + 200 = 300
+	assert.Equal(t, 300, receiver.Coins)
 
 	var transaction domain.Transaction
 	err = db.Where("sender_id = ? AND receiver_id = ?", senderID, receiver.UUID).First(&transaction).Error
@@ -223,9 +255,6 @@ func TestSendCoinsE2E(t *testing.T) {
 func TestGetUserMerchInformationE2E(t *testing.T) {
 	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
-	defer cleanupTestDB(t, db)
-	tx := db.Begin()
-	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -237,14 +266,15 @@ func TestGetUserMerchInformationE2E(t *testing.T) {
 	}()
 
 	userID := uuid.New().String() // Валидный UUID
-	username := "test_user"
+	username := fmt.Sprintf("u_%d", time.Now().UnixNano())
 	createTestUser(t, db, userID, username, 500)
 
-	createTestInventory(t, db, userID, "sword", 1)
-	createTestInventory(t, db, userID, "shield", 2)
+	createTestInventory(t, db, userID, "pen", 1)
+	createTestInventory(t, db, userID, "hoody", 2)
 
 	receiverID := uuid.New().String()
-	createTestUser(t, db, receiverID, "receiver_user", 100)
+	receiverUsername := fmt.Sprintf("u_%d", time.Now().UnixNano())
+	createTestUser(t, db, receiverID, receiverUsername, 100)
 	createTestTransaction(t, db, userID, receiverID, 200)
 	createTestTransaction(t, db, receiverID, userID, 50)
 
@@ -290,9 +320,9 @@ func TestGetUserMerchInformationE2E(t *testing.T) {
 	assert.Len(t, response.Inventory, 2)
 	for _, item := range response.Inventory {
 		switch item.Type {
-		case "sword":
+		case "pen":
 			assert.Equal(t, 1, item.Quantity)
-		case "shield":
+		case "hoody":
 			assert.Equal(t, 2, item.Quantity)
 		default:
 			t.Errorf("Unexpected item type: %s", item.Type)
@@ -303,12 +333,12 @@ func TestGetUserMerchInformationE2E(t *testing.T) {
 	assert.Len(t, response.CoinHistory.Received, 1)
 
 	for _, sent := range response.CoinHistory.Sent {
-		assert.Equal(t, "receiver_user", sent.ToUser)
+		assert.Equal(t, receiverUsername, sent.ToUser)
 		assert.Equal(t, 200, sent.Amount)
 	}
 
 	for _, received := range response.CoinHistory.Received {
-		assert.Equal(t, "receiver_user", received.FromUser)
+		assert.Equal(t, receiverUsername, received.FromUser)
 		assert.Equal(t, 50, received.Amount)
 	}
 }

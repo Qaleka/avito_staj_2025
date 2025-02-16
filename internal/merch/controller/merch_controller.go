@@ -163,7 +163,7 @@ func (h *MerchHandler) handleError(w http.ResponseWriter, err error, requestID s
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
+	errorResponse := map[string]string{"errors": err.Error()}
 
 	switch err.Error() {
 	case "Input contains invalid characters", "Input exceeds character limit",

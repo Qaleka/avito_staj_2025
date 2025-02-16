@@ -10,6 +10,7 @@ import (
 	"avito_staj_2025/internal/service/middleware"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
@@ -17,17 +18,51 @@ import (
 	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 )
 
+func createDatabaseIfNotExists() error {
+	host := os.Getenv("DB_HOST_TEST")
+	port := os.Getenv("DB_PORT_TEST")
+	user := os.Getenv("DB_USER_TEST")
+	pass := os.Getenv("DB_PASS_TEST")
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s sslmode=disable", host, port, user, pass)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return err
+	}
+
+	var count int64
+	db.Raw("SELECT COUNT(*) FROM pg_database WHERE datname = 'test'").Scan(&count)
+
+	if count == 0 {
+		_ = db.Exec("CREATE DATABASE test").Error
+	}
+
+	sqlDB, _ := db.DB()
+	sqlDB.Close()
+
+	return nil
+}
+
 func setupTestDB(t *testing.T) *gorm.DB {
+	err := createDatabaseIfNotExists()
+	assert.NoError(t, err)
 	dsn := dsn2.FromEnvE2E()
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	assert.NoError(t, err)
-
-	err = db.AutoMigrate(&domain.User{})
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	err = tx.AutoMigrate(&domain.User{})
 	assert.NoError(t, err)
-
+	tx.Commit()
 	return db
 }
 
@@ -50,9 +85,6 @@ func createTestUser(t *testing.T, db *gorm.DB, username, password string) {
 func TestLoginUserE2E(t *testing.T) {
 	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
-	defer cleanupTestDB(t, db)
-	tx := db.Begin()
-	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -63,7 +95,7 @@ func TestLoginUserE2E(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	username := "test_user"
+	username := fmt.Sprintf("user_%d", time.Now().Unix())
 	password := "test_password"
 	createTestUser(t, db, username, password)
 
@@ -112,9 +144,6 @@ func TestLoginUserE2E(t *testing.T) {
 func TestLoginUserFirstTimeE2E(t *testing.T) {
 	_ = godotenv.Load("../../../.env")
 	db := setupTestDB(t)
-	defer cleanupTestDB(t, db)
-	tx := db.Begin()
-	defer tx.Rollback()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	assert.NoError(t, err)
 
@@ -125,7 +154,7 @@ func TestLoginUserFirstTimeE2E(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	username := "test_user"
+	username := fmt.Sprintf("user_%d", time.Now().Unix())
 	password := "test_password"
 
 	authRepo := authRepository.NewAuthRepository(db)

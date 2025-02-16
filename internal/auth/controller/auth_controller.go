@@ -94,7 +94,7 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
+	errorResponse := map[string]string{"errors": err.Error()}
 
 	switch err.Error() {
 	case "not correct username", "not correct password",
