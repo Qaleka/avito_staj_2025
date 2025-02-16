@@ -20,8 +20,6 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-	//middleware.InitRedis()
-	//redisStore := session.NewRedisSessionStore(middleware.RedisClient)
 	db := middleware.DbConnect()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	if err != nil {
@@ -38,8 +36,6 @@ func main() {
 		}
 	}()
 
-	//sessionService := session.NewSessionService(redisStore)
-
 	authRepository := authRepository.NewAuthRepository(db)
 	authUseCase := authUsecase.NewAuthUsecase(authRepository)
 	authHandler := authController.NewAuthHandler(authUseCase, jwtToken)
@@ -52,7 +48,7 @@ func main() {
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))
-	fmt.Printf("Starting HTTP server on adress %s\n", os.Getenv("BACKEND_URL"))
+	fmt.Printf("Starting HTTP server on address %s\n", os.Getenv("BACKEND_URL"))
 	if err := http.ListenAndServe(os.Getenv("BACKEND_URL"), nil); err != nil {
 		fmt.Printf("Error on starting server: %s", err)
 	}

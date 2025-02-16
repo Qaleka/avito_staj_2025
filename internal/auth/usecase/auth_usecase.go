@@ -11,7 +11,7 @@ import (
 )
 
 type AuthUsecase interface {
-	LoginUser(ctx context.Context, username string, password string) (string, error)
+	LoginUser(ctx context.Context, username, password string) (string, error)
 }
 
 type authUsecase struct {

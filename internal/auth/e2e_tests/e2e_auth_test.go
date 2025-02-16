@@ -1,4 +1,4 @@
-package e2e_tests
+package e2etests
 
 import (
 	"avito_staj_2025/domain"

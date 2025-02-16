@@ -1,8 +1,8 @@
 import http from 'k6/http';
 import { check } from 'k6';
 
-export const BASE_URL = 'http://localhost:8080/api'; // Замените на ваш URL
-export const USERNAME = `user_${__VU}`; // Уникальный username для каждого виртуального пользователя
+export const BASE_URL = 'http://localhost:8080/api';
+export const USERNAME = `user_${__VU}`;
 export const PASSWORD = 'test_password';
 export const ITEM_NAME = 'pen';
 export const RECEIVER_USERNAME = `user_${__VU}`;

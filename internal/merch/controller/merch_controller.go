@@ -52,7 +52,7 @@ func (h *MerchHandler) SendCoins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var data domain.SentRequest
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+	if err = json.NewDecoder(r.Body).Decode(&data); err != nil {
 		h.handleError(w, err, requestID)
 		return
 	}

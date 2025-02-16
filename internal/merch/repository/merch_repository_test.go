@@ -236,31 +236,24 @@ func TestBuyItem(t *testing.T) {
 			WithArgs(userID, 1).
 			WillReturnRows(userRows)
 
-		// Мокируем запрос для обновления монет пользователя
 		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "coins"=$1 WHERE uuid = $2`)).
 			WithArgs(490, userID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		// Мокируем запрос для обновления инвентаря
 		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO inventories (owner_id, item_name, item_amount) VALUES ($1, $2, 1) ON CONFLICT (owner_id, item_name) DO UPDATE SET item_amount = inventories.item_amount + 1`)).
 			WithArgs(userID, itemName).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		// Завершаем транзакцию
 		mock.ExpectCommit()
 
-		// Вызываем метод
 		err := repo.BuyItem(ctx, userID, itemName, itemCost)
 
-		// Проверяем результаты
 		assert.NoError(t, err)
 
-		// Проверяем, что все ожидаемые запросы были выполнены
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Fail - Not Enough Coins", func(t *testing.T) {
-		// Мокируем запрос для получения пользователя
 		userRows := sqlmock.NewRows([]string{"uuid", "coins"}).
 			AddRow(userID, 8)
 		mock.ExpectBegin()
@@ -268,43 +261,33 @@ func TestBuyItem(t *testing.T) {
 			WithArgs(userID, 1).
 			WillReturnRows(userRows)
 
-		// Откатываем транзакцию
 		mock.ExpectRollback()
 
-		// Вызываем метод
 		err := repo.BuyItem(ctx, userID, itemName, itemCost)
 
-		// Проверяем результаты
 		assert.Error(t, err)
 		assert.Equal(t, "not enough coins", err.Error())
 
-		// Проверяем, что все ожидаемые запросы были выполнены
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Fail - User Not Found", func(t *testing.T) {
-		// Мокируем запрос для получения пользователя с ошибкой
 		mock.ExpectBegin()
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE uuid = $1 ORDER BY "users"."uuid" LIMIT $2`)).
 			WithArgs(userID, 1).
 			WillReturnError(gorm.ErrRecordNotFound)
 
-		// Откатываем транзакцию
 		mock.ExpectRollback()
 
-		// Вызываем метод
 		err := repo.BuyItem(ctx, userID, itemName, itemCost)
 
-		// Проверяем результаты
 		assert.Error(t, err)
 		assert.Equal(t, "user not found", err.Error())
 
-		// Проверяем, что все ожидаемые запросы были выполнены
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Fail - Update User Coins Error", func(t *testing.T) {
-		// Мокируем запрос для получения пользователя
 		userRows := sqlmock.NewRows([]string{"uuid", "coins"}).
 			AddRow(userID, 500)
 		mock.ExpectBegin()
@@ -312,27 +295,21 @@ func TestBuyItem(t *testing.T) {
 			WithArgs(userID, 1).
 			WillReturnRows(userRows)
 
-		// Мокируем запрос для обновления монет пользователя с ошибкой
 		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "coins"=$1 WHERE uuid = $2`)).
 			WithArgs(490, userID).
 			WillReturnError(errors.New("database error"))
 
-		// Откатываем транзакцию
 		mock.ExpectRollback()
 
-		// Вызываем метод
 		err := repo.BuyItem(ctx, userID, itemName, itemCost)
 
-		// Проверяем результаты
 		assert.Error(t, err)
 		assert.Equal(t, "failed to update user balance", err.Error())
 
-		// Проверяем, что все ожидаемые запросы были выполнены
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Fail - Update Inventory Error", func(t *testing.T) {
-		// Мокируем запрос для получения пользователя
 		userRows := sqlmock.NewRows([]string{"uuid", "coins"}).
 			AddRow(userID, 500)
 		mock.ExpectBegin()
@@ -340,27 +317,21 @@ func TestBuyItem(t *testing.T) {
 			WithArgs(userID, 1).
 			WillReturnRows(userRows)
 
-		// Мокируем запрос для обновления монет пользователя
 		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "coins"=$1 WHERE uuid = $2`)).
 			WithArgs(490, userID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		// Мокируем запрос для обновления инвентаря с ошибкой
 		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO inventories (owner_id, item_name, item_amount) VALUES ($1, $2, 1) ON CONFLICT (owner_id, item_name) DO UPDATE SET item_amount = inventories.item_amount + 1`)).
 			WithArgs(userID, itemName).
 			WillReturnError(errors.New("database error"))
 
-		// Откатываем транзакцию
 		mock.ExpectRollback()
 
-		// Вызываем метод
 		err := repo.BuyItem(ctx, userID, itemName, itemCost)
 
-		// Проверяем результаты
 		assert.Error(t, err)
 		assert.Equal(t, "failed to update inventory", err.Error())
 
-		// Проверяем, что все ожидаемые запросы были выполнены
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

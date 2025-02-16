@@ -25,5 +25,5 @@ export default function () {
             });
         }
     }
-    sleep(1); // Пауза между запросами
+    sleep(1);
 }

@@ -1,4 +1,4 @@
-package e2e_tests
+package e2etests
 
 import (
 	"avito_staj_2025/domain"
@@ -27,8 +27,8 @@ import (
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	test_dsn := dsn.FromEnvE2E()
-	db, err := gorm.Open(postgres.Open(test_dsn), &gorm.Config{})
+	dsn := dsn.FromEnvE2E()
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	assert.NoError(t, err)
 
 	err = db.AutoMigrate(&domain.User{}, &domain.Inventory{}, &domain.Transaction{})
